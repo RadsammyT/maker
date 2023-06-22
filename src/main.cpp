@@ -10,8 +10,9 @@ int main(int argc, char* argv[]) {
 	std::vector<std::string_view> args(argv+1, argv + argc);
 	std::vector<std::string> inputFiles;
 	flags flag = {
-		.outputDir = std::nullopt,
+		.outputDir = "__MAKER_NULL",
 		.help = false,
+		.breakOnNotZero = false,
 	};
 	ParseArguments(args, inputFiles, flag);
 
@@ -23,22 +24,24 @@ int main(int argc, char* argv[]) {
 		return 0;
 	}
 
+#ifdef DEBUG
 	printf("Parsed arguments\n");
 	for(auto i: args) {
 		std::cout << i << " ";
 		printf("\n");
 	}
-	printf("Parsed input files\n");
+	printf("\nParsed input files\n");
 	for(auto i: inputFiles) {
 		std::cout << i << " ";
 		printf("\n");
 	}
-	printf("Parsed output file\n");
-	if(flag.outputDir)
-		printf("%s\n", flag.outputDir->get().c_str());
-	else 
+	printf("\nParsed output file\n");
+	if(flag.outputDir != "__MAKER_NULL") {
+		printf("%s\n", flag.outputDir.c_str());
+		printf("End.\n");
+	} else 
 		printf("None.\n");
-
+#endif
 
 	CompileInput(inputFiles, flag);
 
