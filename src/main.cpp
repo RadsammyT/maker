@@ -43,6 +43,7 @@ int main(int argc, char* argv[]) {
 		printf("None.\n");
 #endif
 
+
 	CompileInput(inputFiles, flag);
 
 	return 0;

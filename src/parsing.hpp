@@ -5,6 +5,11 @@
 #include <optional>
 #include <memory>
 #include <stdexcept>
+#include <filesystem>
+#include <fstream>
+#include <map>
+
+namespace fs = std::filesystem;
 
 #define OP_REFW_STR std::optional<std::reference_wrapper<std::string>>
 #pragma once
@@ -47,6 +52,36 @@ int GetFileExtension(std::string_view in) {
 	}
 
 	return -1;
+}
+
+int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfigs) {
+	fs::path config;
+	if(!fs::exists(input)) {
+		return 404;
+	}
+	if(!fs::exists((fs::absolute(input).parent_path() / ".maker"))) {
+		std::cout << (fs::absolute(input).parent_path() / ".maker") << "\n";
+		return 1;
+	}
+
+	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
+	while(std::getline(dotMaker, input)) {
+		if(input.starts_with("c=")) {
+			input.erase(0, 2);
+			makerLangConfigs[FILE_TYPE::C] = input;
+		}
+
+		if(input.starts_with("cpp=")) {
+			input.erase(0, 4);
+			makerLangConfigs[FILE_TYPE::CPP] = input;
+		}
+
+		if(input.starts_with("rs=")) {
+			input.erase(0, 3);
+			makerLangConfigs[FILE_TYPE::RS] = input;
+		}
+	}
+	return 0;
 }
 
 int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>& input,
@@ -101,7 +136,9 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 	int retCode = 0;
 	std::string outFile;
+	std::map<int, std::string> makerCfg;
 	for(auto file: inputFiles) {
+		GetMakerConfig(file, makerCfg);
 		outFile = file;
 		switch(GetFileExtension(std::string_view(file))) {
 
@@ -112,16 +149,30 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 							 flag.outputDir != "__MAKER_NULL"?
 							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
 							: string_format("bin/%s", outFile.c_str()).c_str(),
-							" "
+							makerCfg[FILE_TYPE::CPP].c_str()
 							).c_str());
 				break;
 
 			case FILE_TYPE::C:
-
+				outFile.replace(file.find(".c"), sizeof(".c"), ".exe");
+				retCode = system(string_format("gcc %s -o %s %s",
+							file.c_str(),
+							 flag.outputDir != "__MAKER_NULL"?
+							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
+							: string_format("bin/%s", outFile.c_str()).c_str(),
+							makerCfg[FILE_TYPE::C].c_str()
+							).c_str());
 				break;
 
 			case FILE_TYPE::RS:
-					
+				outFile.replace(file.find(".rs"), sizeof(".rs"), ".exe");
+				retCode = system(string_format("rustc %s -o %s %s",
+							file.c_str(),
+							 flag.outputDir != "__MAKER_NULL"?
+							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
+							: string_format("bin/%s", outFile.c_str()).c_str(),
+							makerCfg[FILE_TYPE::RS].c_str()
+							).c_str());
 				break;
 
 			default:
