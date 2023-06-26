@@ -16,11 +16,13 @@ int main(int argc, char* argv[]) {
 	};
 	ParseArguments(args, inputFiles, flag);
 
-	if(flag.help) {
+	if(flag.help || argc == 1) {
 		printf("maker, a wrapper for single-source compiling.\n\n"
 				"Usage: maker [options] [file(s)]\n"
 				"-o - Output Directory, where compiled source files go.\n"
-				"-h / --help - Print this help screen.\n\n");
+				"-b - Break when any compiler returns a code not zero (0)\n"
+				"-h / --help - Print this help screen.\n\n"
+				);
 		return 0;
 	}
 

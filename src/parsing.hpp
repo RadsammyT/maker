@@ -65,21 +65,29 @@ int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfi
 	}
 
 	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
+	int lineCount = 0;
 	while(std::getline(dotMaker, input)) {
+		lineCount++;
 		if(input.starts_with("c=")) {
 			input.erase(0, 2);
 			makerLangConfigs[FILE_TYPE::C] = input;
+			continue;
 		}
 
 		if(input.starts_with("cpp=")) {
 			input.erase(0, 4);
 			makerLangConfigs[FILE_TYPE::CPP] = input;
+			continue;
 		}
 
 		if(input.starts_with("rs=")) {
 			input.erase(0, 3);
 			makerLangConfigs[FILE_TYPE::RS] = input;
+			continue;
 		}
+		printf("Invalid config start on line %d!\n"
+				"%s\n", lineCount, input.c_str());
+
 	}
 	return 0;
 }

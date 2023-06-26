@@ -10,7 +10,20 @@ their respective binaries. By default they will be put into the `bin` directory 
 
 # Support
 
-Maker supports nothing at the moment. C/C++ support is first on the list.
+Maker supports Rust, C (GCC only) and C++ (G++ only) at the moment. 
 
+# Configuration
 
+You can configure compilation commands for a specific language through a `.maker` file 
+located alongside your chosen source files.
+
+To setup a configuration for a specific language (in this case C):
+
+```
+c= -g -ggdb -Og
+```
+
+Note that the `c=` (or any other config line) must be exact before writing the rest of that
+languages config. Typically, specifying a language means that languages source file extension
+and `=`.
 

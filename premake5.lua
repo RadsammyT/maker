@@ -7,7 +7,7 @@ workspace "maker"
 
     filter "configurations:Release"
         defines { "NDEBUG" }
-        optimize "On"
+        optimize "Full"
 
 	targetdir "_bin/%{cfg.buildcfg}"
 
@@ -16,7 +16,7 @@ workspace "maker"
 		location "_build"
 		targetdir "_bin/%{cfg.buildcfg}"
 
-		files {"**.c", "**.cpp", "**.h", "**.hpp"}
+		files {"src/*.c", "src/*.cpp", "src/*.h", "src/*.hpp"}
 		includedirs { "./", "src", "include"}
 
 		vpaths 
