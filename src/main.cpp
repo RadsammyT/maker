@@ -4,7 +4,7 @@
 #include <string>
 #include <functional>
 #include <optional>
-
+#include <stdio.h>
 
 int main(int argc, char* argv[]) {
 	std::vector<std::string_view> args(argv+1, argv + argc);
@@ -25,7 +25,6 @@ int main(int argc, char* argv[]) {
 				);
 		return 0;
 	}
-
 #ifdef DEBUG
 	printf("Parsed arguments\n");
 	for(auto i: args) {
@@ -47,6 +46,5 @@ int main(int argc, char* argv[]) {
 
 
 	CompileInput(inputFiles, flag);
-
 	return 0;
 }

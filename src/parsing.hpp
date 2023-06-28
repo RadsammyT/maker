@@ -10,9 +10,6 @@
 #include <map>
 
 namespace fs = std::filesystem;
-
-#define OP_REFW_STR std::optional<std::reference_wrapper<std::string>>
-#pragma once
 struct flags {
 	std::string outputDir;
 	bool help;
@@ -38,11 +35,11 @@ std::string string_format( const std::string& format, Args ... args )
     std::snprintf( buf.get(), size, format.c_str(), args ... );
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
+
 int GetFileExtension(std::string_view in) {
 	if(in.ends_with(".c")) {
 		return FILE_TYPE::C;
 	}
-
 	if(in.ends_with(".cpp")) {
 		return FILE_TYPE::CPP;
 	}
@@ -54,7 +51,7 @@ int GetFileExtension(std::string_view in) {
 	return -1;
 }
 
-int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfigs) {
+int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfigs, flags flag) {
 	fs::path config;
 	if(!fs::exists(input)) {
 		return 404;
@@ -87,6 +84,9 @@ int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfi
 		}
 		printf("Invalid config start on line %d!\n"
 				"%s\n", lineCount, input.c_str());
+		if(flag.breakOnNotZero) {
+			return 1;
+		}
 
 	}
 	return 0;
@@ -146,7 +146,9 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 	std::string outFile;
 	std::map<int, std::string> makerCfg;
 	for(auto file: inputFiles) {
-		GetMakerConfig(file, makerCfg);
+		if(GetMakerConfig(file, makerCfg, flag) != 0) {
+			return 1;
+		}
 		outFile = file;
 		switch(GetFileExtension(std::string_view(file))) {
 
