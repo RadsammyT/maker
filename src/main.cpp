@@ -2,20 +2,19 @@
 #include "parsing.hpp"
 #include <vector>
 #include <string>
-#include <functional>
-#include <optional>
-#include <stdio.h>
 
 int main(int argc, char* argv[]) {
+	
 	std::vector<std::string_view> args(argv+1, argv + argc);
 	std::vector<std::string> inputFiles;
+	
 	flags flag = {
 		.outputDir = "__MAKER_NULL",
 		.help = false,
 		.breakOnNotZero = false,
 	};
-	ParseArguments(args, inputFiles, flag);
 
+	ParseArguments(args, inputFiles, flag);
 	if(flag.help || argc == 1) {
 		printf("maker, a wrapper for single-source compiling.\n\n"
 				"Usage: maker [options] [file(s)]\n"
@@ -43,8 +42,6 @@ int main(int argc, char* argv[]) {
 	} else 
 		printf("None.\n");
 #endif
-
-
 	CompileInput(inputFiles, flag);
 	return 0;
 }

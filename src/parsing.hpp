@@ -1,9 +1,6 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include <functional>
-#include <optional>
-#include <memory>
 #include <stdexcept>
 #include <filesystem>
 #include <fstream>
@@ -17,10 +14,11 @@ struct flags {
 };
 
 namespace FILE_TYPE {
-	enum FILE_TYPE {
+	enum FILE_TYPE { // add-lang
 		C,
 		CPP,
-		RS // Rust source file extension
+		RS, // Rust source file extension
+		ZIG,
 	};
 }
 // yoinked from https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
@@ -36,7 +34,7 @@ std::string string_format( const std::string& format, Args ... args )
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
-int GetFileExtension(std::string_view in) {
+int GetFileExtension(std::string_view in) { // add-lang
 	if(in.ends_with(".c")) {
 		return FILE_TYPE::C;
 	}
@@ -48,10 +46,17 @@ int GetFileExtension(std::string_view in) {
 		return FILE_TYPE::RS;
 	}
 
+	if(in.ends_with(".zig")) {
+		return FILE_TYPE::ZIG;
+	}
+
 	return -1;
 }
 
-int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfigs, flags flag) {
+int GetMakerConfig(std::string input,
+		std::map<int, std::string>& makerLangConfigs,
+		flags flag) {
+
 	fs::path config;
 	if(!fs::exists(input)) {
 		return 404;
@@ -63,7 +68,7 @@ int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfi
 
 	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
 	int lineCount = 0;
-	while(std::getline(dotMaker, input)) {
+	while(std::getline(dotMaker, input)) { //add-lang
 		lineCount++;
 		if(input.starts_with("c=")) {
 			input.erase(0, 2);
@@ -80,6 +85,12 @@ int GetMakerConfig(std::string input, std::map<int, std::string>& makerLangConfi
 		if(input.starts_with("rs=")) {
 			input.erase(0, 3);
 			makerLangConfigs[FILE_TYPE::RS] = input;
+			continue;
+		}
+		
+		if(input.starts_with("zig=")) {
+			input.erase(0,4);
+			makerLangConfigs[FILE_TYPE::ZIG] = input;
 			continue;
 		}
 		printf("Invalid config start on line %d!\n"
@@ -133,7 +144,7 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 			continue;
 		}
 
-		printf("UH OH!!! Passed a string! String is %s, with mode being %d.", 
+		printf("UH OH!!! Passed a string! String is %s, with mode being %d.\n", 
 				std::string(str.begin(), str.end()).c_str(), 
 				cmode);
 		return false;
@@ -150,7 +161,8 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 			return 1;
 		}
 		outFile = file;
-		switch(GetFileExtension(std::string_view(file))) {
+		printf("---%s---\n", file.c_str());
+		switch(GetFileExtension(std::string_view(file))) { //add-lang
 
 			case FILE_TYPE::CPP:
 				outFile.replace(file.find(".cpp"), sizeof(".cpp"), ".exe");
@@ -184,6 +196,16 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 							makerCfg[FILE_TYPE::RS].c_str()
 							).c_str());
 				break;
+
+			case FILE_TYPE::ZIG:
+				outFile.replace(file.find(".zig"), sizeof(".zig"), ".exe");
+				retCode = system(string_format("zig %s -femit-bin=%s %s",
+							file.c_str(),
+							 flag.outputDir != "__MAKER_NULL"?
+							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
+							: string_format("bin/%s", outFile.c_str()).c_str(),
+							makerCfg[FILE_TYPE::ZIG].c_str()
+							).c_str());
 
 			default:
 				printf("Unknown/unsupported file extension for %s\n", file.c_str());
