@@ -10,7 +10,7 @@ their respective binaries. By default they will be put into the `bin` directory 
 
 # Support
 
-Maker supports Rust, C (GCC only) and C++ (G++ only) at the moment. 
+Maker supports Rust, Zig, C (GCC only) and C++ (G++ only) at the moment. 
 
 # Configuration
 
