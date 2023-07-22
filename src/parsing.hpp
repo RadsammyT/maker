@@ -59,11 +59,12 @@ int GetMakerConfig(std::string input,
 
 	fs::path config;
 	if(!fs::exists(input)) {
+		printf("Unable to find file: %s \n", input.c_str());
 		return 404;
 	}
 	if(!fs::exists((fs::absolute(input).parent_path() / ".maker"))) {
+		printf("Unable to find configs for %s, by getting: ", input.c_str());
 		std::cout << (fs::absolute(input).parent_path() / ".maker") << "\n";
-		return 1;
 	}
 
 	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
@@ -206,6 +207,7 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 							: string_format("bin/%s", outFile.c_str()).c_str(),
 							makerCfg[FILE_TYPE::ZIG].c_str()
 							).c_str());
+				break;
 
 			default:
 				printf("Unknown/unsupported file extension for %s\n", file.c_str());
