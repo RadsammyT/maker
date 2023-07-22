@@ -5,7 +5,11 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
-
+#ifdef _WIN32
+#define OUT_SUFFIX ".exe"
+#else
+#define OUT_SUFFIX ""
+#endif
 namespace fs = std::filesystem;
 struct flags {
 	std::string outputDir;
@@ -157,16 +161,25 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 	int retCode = 0;
 	std::string outFile;
 	std::map<int, std::string> makerCfg;
+	if(flag.outputDir == "__MAKER_NULL") {
+		flag.outputDir = "bin";
+	}
 	for(auto file: inputFiles) {
 		if(GetMakerConfig(file, makerCfg, flag) != 0) {
 			return 1;
 		}
 		outFile = file;
+
+		// Create output dir if one does not exist
+		if(!fs::exists(	fs::absolute(file).parent_path() / flag.outputDir)) {
+			fs::create_directory(fs::absolute(file).parent_path() / flag.outputDir);
+		}
+
 		printf("---%s---\n", file.c_str());
 		switch(GetFileExtension(std::string_view(file))) { //add-lang
 
 			case FILE_TYPE::CPP:
-				outFile.replace(file.find(".cpp"), sizeof(".cpp"), ".exe");
+				outFile.replace(file.find(".cpp"), sizeof(".cpp"), OUT_SUFFIX);
 				retCode = system(string_format("g++ %s -o %s %s",
 							file.c_str(),
 							 flag.outputDir != "__MAKER_NULL"?
@@ -177,7 +190,7 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 				break;
 
 			case FILE_TYPE::C:
-				outFile.replace(file.find(".c"), sizeof(".c"), ".exe");
+				outFile.replace(file.find(".c"), sizeof(".c"), OUT_SUFFIX);
 				retCode = system(string_format("gcc %s -o %s %s",
 							file.c_str(),
 							 flag.outputDir != "__MAKER_NULL"?
@@ -188,7 +201,7 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 				break;
 
 			case FILE_TYPE::RS:
-				outFile.replace(file.find(".rs"), sizeof(".rs"), ".exe");
+				outFile.replace(file.find(".rs"), sizeof(".rs"), OUT_SUFFIX);
 				retCode = system(string_format("rustc %s -o %s %s",
 							file.c_str(),
 							 flag.outputDir != "__MAKER_NULL"?
@@ -199,7 +212,7 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 				break;
 
 			case FILE_TYPE::ZIG:
-				outFile.replace(file.find(".zig"), sizeof(".zig"), ".exe");
+				outFile.replace(file.find(".zig"), sizeof(".zig"), OUT_SUFFIX);
 				retCode = system(string_format("zig %s -femit-bin=%s %s",
 							file.c_str(),
 							 flag.outputDir != "__MAKER_NULL"?
