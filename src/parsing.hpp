@@ -75,13 +75,16 @@ int GetMakerConfig(std::string input,
 	int lineCount = 0;
 	while(std::getline(dotMaker, input)) { //add-lang
 		lineCount++;
+		if(input.starts_with("#")) { // commenting
+			continue;
+		}
 		if(input.starts_with("c=")) {
 			input.erase(0, 2);
 			makerLangConfigs[FILE_TYPE::C] = input;
 			continue;
 		}
 
-		if(input.starts_with("cpp=")) {
+		if(input.starts_with("cpp=") || input.starts_with("cc=")) {
 			input.erase(0, 4);
 			makerLangConfigs[FILE_TYPE::CPP] = input;
 			continue;
@@ -99,7 +102,7 @@ int GetMakerConfig(std::string input,
 			continue;
 		}
 		printf("Invalid config start on line %d!\n"
-				"%s\n", lineCount, input.c_str());
+				"\"%s\"\n", lineCount, input.c_str());
 		if(flag.breakOnNotZero) {
 			return 1;
 		}
@@ -135,6 +138,11 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 
 		if(str == "-h" || str == "--help") {
 			flag.help = true;
+			continue;
+		}
+	
+		if(str.starts_with("-")) {
+			printf("Invalid argument: %s\n", strc.c_str());
 			continue;
 		}
 
