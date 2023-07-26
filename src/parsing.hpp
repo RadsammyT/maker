@@ -114,7 +114,9 @@ int GetMakerConfig(std::string input,
 	// push config per extension
 	std::vector<std::string> extensions;
 	while(std::getline(dotMaker, line)) {
-		printf("%s\n", line.c_str());
+		if(!line.ends_with(" ")) {
+			line += " ";
+		}
 		tokens = tokenize(line, ' ');
 		if(tokens[0] == "extension") {
 			tokens.erase(tokens.begin());
@@ -134,8 +136,6 @@ int GetMakerConfig(std::string input,
 				configs[i] = MakerLangConfig {
 					.format = format
 				};
-				extensions.clear();
-				format.clear();
 			}
 			continue;
 		}
