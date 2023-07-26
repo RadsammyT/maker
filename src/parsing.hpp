@@ -56,7 +56,10 @@ int GetFileExtension(std::string_view in) { // add-lang
 
 	return -1;
 }
-
+/**
+ * REWRITE TODO:
+ * 		- maker should 
+ */
 int GetMakerConfig(std::string input,
 		std::map<int, std::string>& makerLangConfigs,
 		flags flag) {
