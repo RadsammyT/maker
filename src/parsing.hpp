@@ -184,50 +184,38 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 		}
 
 		printf("---%s---\n", file.c_str());
+		/**
+		 *	format: requires 3 %s, in order are: input file, output executable, and config
+		 */
+		auto compile = [&outFile, flag, &makerCfg, file](const char* format, FILE_TYPE::FILE_TYPE type){
+				return system(string_format(format,
+							file.c_str(),
+							 flag.outputDir != "__MAKER_NULL"?
+							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
+							: string_format("bin/%s", outFile.c_str()).c_str(),
+							makerCfg[type].c_str()
+							).c_str());
+		};
 		switch(GetFileExtension(std::string_view(file))) { //add-lang
 
 			case FILE_TYPE::CPP:
 				outFile.replace(file.find(".cpp"), sizeof(".cpp"), OUT_SUFFIX);
-				retCode = system(string_format("g++ %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::CPP].c_str()
-							).c_str());
+				retCode = compile("g++ %s -o %s %s", FILE_TYPE::CPP);
 				break;
 
 			case FILE_TYPE::C:
 				outFile.replace(file.find(".c"), sizeof(".c"), OUT_SUFFIX);
-				retCode = system(string_format("gcc %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::C].c_str()
-							).c_str());
+				retCode = compile("gcc %s -o %s %s", FILE_TYPE::C);
 				break;
 
 			case FILE_TYPE::RS:
 				outFile.replace(file.find(".rs"), sizeof(".rs"), OUT_SUFFIX);
-				retCode = system(string_format("rustc %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::RS].c_str()
-							).c_str());
+				retCode = compile("rustc %s -o %s %s", FILE_TYPE::RS);
 				break;
 
 			case FILE_TYPE::ZIG:
 				outFile.replace(file.find(".zig"), sizeof(".zig"), OUT_SUFFIX);
-				retCode = system(string_format("zig %s -femit-bin=%s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::ZIG].c_str()
-							).c_str());
+				retCode = compile("zig %s -femit-bit=%s %s", FILE_TYPE::ZIG);
 				break;
 
 			default:
