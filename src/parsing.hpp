@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -15,6 +16,11 @@ struct flags {
 	std::string outputDir;
 	bool help;
 	bool breakOnNotZero;
+};
+// associate extension with configuration consisting of:
+// compiler, format of execution
+struct MakerLangConfig {
+	std::string format;
 };
 
 namespace FILE_TYPE {
@@ -38,6 +44,26 @@ std::string string_format( const std::string& format, Args ... args )
     return std::string( buf.get(), buf.get() + size - 1 ); // We don't want the '\0' inside
 }
 
+std::vector<std::string> tokenize(std::string in, char del) {
+	std::string buf;
+	std::vector<std::string> ret;
+	std::stringstream instr(in);
+	while(std::getline(instr, buf, del)) 
+		ret.push_back(buf);
+	return ret;
+}
+// convert format spec to include actual input file name and output dir
+std::string ParseFormat(std::string inFile, flags flag, std::map<std::string, MakerLangConfig> cfgs) {
+	std::string ext = inFile.substr(inFile.find_last_of('.'), inFile.size());
+	std::string fmt = cfgs.at(ext).format;
+	std::string outFile = inFile;
+	outFile.replace(outFile.find(ext), sizeof(ext.c_str()), OUT_SUFFIX);
+	std::string dir = string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str());
+	fmt.replace(fmt.find("%file%"), sizeof("%file%")-1, inFile);
+	fmt.replace(fmt.find("%output%"), sizeof("%output%")-1, dir);
+	return fmt;
+}
+/*
 int GetFileExtension(std::string_view in) { // add-lang
 	if(in.ends_with(".c")) {
 		return FILE_TYPE::C;
@@ -56,13 +82,20 @@ int GetFileExtension(std::string_view in) { // add-lang
 
 	return -1;
 }
+*/
 /**
  * REWRITE TODO:
- * 		- maker should 
+ * format should be like this:
+ * |extension .cpp
+ * |format g++ %file% -o %output%
+ * |push
+ *
+ * why get the compiler alone? should that be included in just the format?
+ * a format like this only needs files and output as required labels
  */
 int GetMakerConfig(std::string input,
-		std::map<int, std::string>& makerLangConfigs,
-		flags flag) {
+		flags flag,
+		std::map<std::string, MakerLangConfig>& configs) {
 
 	fs::path config;
 	if(!fs::exists(input)) {
@@ -75,44 +108,42 @@ int GetMakerConfig(std::string input,
 	}
 
 	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
-	int lineCount = 0;
-	while(std::getline(dotMaker, input)) { //add-lang
-		lineCount++;
-		if(input.starts_with("#")) { // commenting
+	std::string line;
+	std::string format;
+	std::vector<std::string> tokens ;
+	// push config per extension
+	std::vector<std::string> extensions;
+	while(std::getline(dotMaker, line)) {
+		printf("%s\n", line.c_str());
+		tokens = tokenize(line, ' ');
+		if(tokens[0] == "extension") {
+			tokens.erase(tokens.begin());
+			tokens.swap(extensions);
 			continue;
 		}
-		if(input.starts_with("c=")) {
-			input.erase(0, 2);
-			makerLangConfigs[FILE_TYPE::C] = input;
+		if(tokens[0] == "format") {
+			tokens.erase(tokens.begin());
+			for(auto i: tokens) {
+				format += i;
+				format += " ";
+			}
 			continue;
 		}
-
-		if(input.starts_with("cpp=") || input.starts_with("cc=")) {
-			input.erase(0, 4);
-			makerLangConfigs[FILE_TYPE::CPP] = input;
+		if(tokens[0] == "push") {
+			for(auto i: extensions) {
+				configs[i] = MakerLangConfig {
+					.format = format
+				};
+				extensions.clear();
+				format.clear();
+			}
 			continue;
 		}
-
-		if(input.starts_with("rs=")) {
-			input.erase(0, 3);
-			makerLangConfigs[FILE_TYPE::RS] = input;
-			continue;
-		}
-		
-		if(input.starts_with("zig=")) {
-			input.erase(0,4);
-			makerLangConfigs[FILE_TYPE::ZIG] = input;
-			continue;
-		}
-		printf("Invalid config start on line %d!\n"
-				"\"%s\"\n", lineCount, input.c_str());
-		if(flag.breakOnNotZero) {
-			return 1;
-		}
-
 	}
+
 	return 0;
 }
+
 
 int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>& input,
 					flags& flag) {
@@ -171,72 +202,20 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 	int retCode = 0;
 	std::string outFile;
-	std::map<int, std::string> makerCfg;
+	std::map<std::string, MakerLangConfig> makerCfg;
 	if(flag.outputDir == "__MAKER_NULL") {
 		flag.outputDir = "bin";
 	}
 	for(auto file: inputFiles) {
-		if(GetMakerConfig(file, makerCfg, flag) != 0) {
-			return 1;
-		}
-		outFile = file;
-
+		GetMakerConfig(file, flag, makerCfg);	
 		// Create output dir if one does not exist
 		if(!fs::exists(	fs::absolute(file).parent_path() / flag.outputDir)) {
 			fs::create_directory(fs::absolute(file).parent_path() / flag.outputDir);
 		}
 
 		printf("---%s---\n", file.c_str());
-		switch(GetFileExtension(std::string_view(file))) { //add-lang
-
-			case FILE_TYPE::CPP:
-				outFile.replace(file.find(".cpp"), sizeof(".cpp"), OUT_SUFFIX);
-				retCode = system(string_format("g++ %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::CPP].c_str()
-							).c_str());
-				break;
-
-			case FILE_TYPE::C:
-				outFile.replace(file.find(".c"), sizeof(".c"), OUT_SUFFIX);
-				retCode = system(string_format("gcc %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::C].c_str()
-							).c_str());
-				break;
-
-			case FILE_TYPE::RS:
-				outFile.replace(file.find(".rs"), sizeof(".rs"), OUT_SUFFIX);
-				retCode = system(string_format("rustc %s -o %s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::RS].c_str()
-							).c_str());
-				break;
-
-			case FILE_TYPE::ZIG:
-				outFile.replace(file.find(".zig"), sizeof(".zig"), OUT_SUFFIX);
-				retCode = system(string_format("zig %s -femit-bin=%s %s",
-							file.c_str(),
-							 flag.outputDir != "__MAKER_NULL"?
-							 string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str()).c_str()
-							: string_format("bin/%s", outFile.c_str()).c_str(),
-							makerCfg[FILE_TYPE::ZIG].c_str()
-							).c_str());
-				break;
-
-			default:
-				printf("Unknown/unsupported file extension for %s\n", file.c_str());
-				break;
-		}
+		std::string fmt = ParseFormat(file, flag, makerCfg).c_str();
+		retCode = system(fmt.c_str());
 		if(retCode != 0 ) {
 			printf("Got return code %d for %s\n", retCode, file.c_str());
 			if(flag.breakOnNotZero)
