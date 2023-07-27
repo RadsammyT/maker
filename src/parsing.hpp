@@ -137,10 +137,12 @@ int GetMakerConfig(std::string input,
 					.format = format
 				};
 			}
+			format.clear();
+			extensions.clear();
 			continue;
 		}
 	}
-
+	configs.erase("");
 	return 0;
 }
 
