@@ -63,26 +63,7 @@ std::string ParseFormat(std::string inFile, flags flag, std::map<std::string, Ma
 	fmt.replace(fmt.find("%output%"), sizeof("%output%")-1, dir);
 	return fmt;
 }
-/*
-int GetFileExtension(std::string_view in) { // add-lang
-	if(in.ends_with(".c")) {
-		return FILE_TYPE::C;
-	}
-	if(in.ends_with(".cpp")) {
-		return FILE_TYPE::CPP;
-	}
 
-	if(in.ends_with(".rs")) {
-		return FILE_TYPE::RS;
-	}
-
-	if(in.ends_with(".zig")) {
-		return FILE_TYPE::ZIG;
-	}
-
-	return -1;
-}
-*/
 /**
  * REWRITE TODO:
  * format should be like this:
