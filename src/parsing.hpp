@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstdlib>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -83,12 +84,30 @@ int GetMakerConfig(std::string input,
 		printf("Unable to find file: %s \n", input.c_str());
 		return 404;
 	}
+	bool UseDefault = false;
 	if(!fs::exists((fs::absolute(input).parent_path() / ".maker"))) {
+	#ifdef DEBUG
 		printf("Unable to find configs for %s, by getting: ", input.c_str());
 		std::cout << (fs::absolute(input).parent_path() / ".maker") << "\n";
+		printf("Attempting to find default .maker in HOME/.config/maker/.maker ...\n");
+	#endif
+		std::string def = std::getenv("HOME") != NULL ? std::getenv("HOME") : "__NULL__";
+		if(def != "__NULL__" && fs::exists(def + "/.config/maker/.maker")) {
+			UseDefault = true;
+		} else {
+			#ifdef DEBUG
+				printf("No home .maker found.\n");
+			#endif
+			return false;
+		}
 	}
-
-	std::ifstream dotMaker((fs::absolute(input).parent_path() / ".maker").string());
+	std::ifstream dotMaker;
+	if(UseDefault) {
+		std::string def = std::getenv("HOME") != NULL ? std::getenv("HOME") : "__NULL__";
+		dotMaker = std::ifstream(def + "/.config/maker/.maker");
+	} else {
+		dotMaker = std::ifstream((fs::absolute(input).parent_path() / ".maker").string());
+	}
 	std::string line;
 	std::string format;
 	std::vector<std::string> tokens ;
