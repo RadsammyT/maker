@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
+#include <variant>
 #include <vector>
 #include <string>
 #include <stdexcept>
@@ -55,7 +56,13 @@ std::vector<std::string> tokenize(std::string in, char del) {
 }
 // convert format spec to include actual input file name and output dir
 std::string ParseFormat(std::string inFile, flags flag, std::map<std::string, MakerLangConfig> cfgs) {
+	if(inFile.find_last_of('.') == std::string::npos) {
+		return "__NO_EXT__";
+	}
 	std::string ext = inFile.substr(inFile.find_last_of('.'), inFile.size());
+	if(cfgs.count(ext) <= 0) {
+		return "__NOT_FOUND__";
+	}
 	std::string fmt = cfgs.at(ext).format;
 	std::string outFile = inFile;
 	outFile.replace(outFile.find(ext), sizeof(ext.c_str()), OUT_SUFFIX);
@@ -98,7 +105,7 @@ int GetMakerConfig(std::string input,
 			#ifdef DEBUG
 				printf("No home .maker found.\n");
 			#endif
-			return false;
+			return 1;
 		}
 	}
 	std::ifstream dotMaker;
@@ -209,7 +216,10 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 		flag.outputDir = "bin";
 	}
 	for(auto file: inputFiles) {
-		GetMakerConfig(file, flag, makerCfg);	
+		int ret = GetMakerConfig(file, flag, makerCfg);	
+		if(ret == 404) {
+			continue;
+		}
 		// Create output dir if one does not exist
 		if(!fs::exists(	fs::absolute(file).parent_path() / flag.outputDir)) {
 			fs::create_directory(fs::absolute(file).parent_path() / flag.outputDir);
@@ -217,6 +227,14 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 
 		printf("---%s---\n", file.c_str());
 		std::string fmt = ParseFormat(file, flag, makerCfg).c_str();
+		if(fmt == "__NOT_FOUND__") {
+			printf("Cannot find configuration for file: %s!\n", file.c_str());
+			return 2;
+		}
+		if(fmt == "__NO_EXT__") {
+			printf("No extension present for file: %s!\n", file.c_str());
+			return 3;
+		}
 		retCode = system(fmt.c_str());
 		if(retCode != 0 ) {
 			printf("Got return code %d for %s\n", retCode, file.c_str());
