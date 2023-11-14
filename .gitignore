@@ -1,3 +1,9 @@
 _bin
 _build
 Makefile
+.cache/*
+compile_commands
+compile_commands.json
+test
+
+

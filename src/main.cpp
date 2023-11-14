@@ -9,6 +9,7 @@ int main(int argc, char* argv[]) {
 	
 	flags flag = {
 		.outputDir = "__MAKER_NULL",
+		.formatConfig = "__MAKER_DEFAULT",
 		.help = false,
 		.breakOnNotZero = false,
 	};
@@ -19,7 +20,9 @@ int main(int argc, char* argv[]) {
 				"Usage: maker [options] [file(s)]\n"
 				"-o - Output Directory, where compiled source files go.\n"
 				"-b - Break when any compiler returns a code not zero (0)\n"
-				"-h / --help - Print this help screen.\n\n"
+				"-h / --help - Print this help screen.\n"
+				"-c - Set configuration keyword for .maker file. Check the README\n"
+				"     for more info. \n"
 				);
 		return 0;
 	}
@@ -40,6 +43,9 @@ int main(int argc, char* argv[]) {
 		printf("End.\n");
 	} else 
 		printf("None.\n");
+
+	printf("\nParsed config\n");
+	printf("%s\n", flag.formatConfig.c_str());
 #endif
 	CompileInput(inputFiles, flag);
 	return 0;

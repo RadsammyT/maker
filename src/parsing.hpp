@@ -1,10 +1,6 @@
-#include <algorithm>
-#include <cstdlib>
 #include <iostream>
-#include <variant>
 #include <vector>
 #include <string>
-#include <stdexcept>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -16,23 +12,16 @@
 namespace fs = std::filesystem;
 struct flags {
 	std::string outputDir;
+	std::string formatConfig;
 	bool help;
 	bool breakOnNotZero;
 };
 // associate extension with configuration consisting of:
 // compiler, format of execution
 struct MakerLangConfig {
-	std::string format;
+	std::map<std::string, std::string> configToFormat;
 };
 
-namespace FILE_TYPE {
-	enum FILE_TYPE { // add-lang
-		C,
-		CPP,
-		RS, // Rust source file extension
-		ZIG,
-	};
-}
 // yoinked from https://stackoverflow.com/questions/2342162/stdstring-formatting-like-sprintf
 // answered by iFreilicht, thanks!
 template<typename ... Args>
@@ -63,12 +52,22 @@ std::string ParseFormat(std::string inFile, flags flag, std::map<std::string, Ma
 	if(cfgs.count(ext) <= 0) {
 		return "__NOT_FOUND__";
 	}
-	std::string fmt = cfgs.at(ext).format;
+	std::string fmt = cfgs.at(ext).configToFormat.at(flag.formatConfig);
 	std::string outFile = inFile;
 	outFile.replace(outFile.find(ext), sizeof(ext.c_str()), OUT_SUFFIX);
 	std::string dir = string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str());
-	fmt.replace(fmt.find("%file%"), sizeof("%file%")-1, inFile);
-	fmt.replace(fmt.find("%output%"), sizeof("%output%")-1, dir);
+	if(fmt.find("%file%") != std::string::npos)
+		fmt.replace(fmt.find("%file%"), sizeof("%file%")-1, inFile);
+	else {
+		return "__NO_FILE_SPEC__";
+	}
+	if(fmt.find("%output%") != std::string::npos)
+		fmt.replace(fmt.find("%output%"), sizeof("%output%")-1, dir);
+	else {
+#if defined(DEBUG)
+		printf("Cannot find output specifier in .maker file.\n");
+#endif
+	}
 	return fmt;
 }
 
@@ -117,10 +116,15 @@ int GetMakerConfig(std::string input,
 	}
 	std::string line;
 	std::string format;
+	std::string formatConfig;
+	std::map<std::string, std::string> formatMap;
 	std::vector<std::string> tokens ;
 	// push config per extension
 	std::vector<std::string> extensions;
 	while(std::getline(dotMaker, line)) {
+		while(line.starts_with("\t") || line.starts_with(" ")) {
+			line.erase(line.begin());
+		}
 		if(!line.ends_with(" ")) {
 			line += " ";
 		}
@@ -130,20 +134,30 @@ int GetMakerConfig(std::string input,
 			tokens.swap(extensions);
 			continue;
 		}
+		if(tokens[0] == "config" ) {
+			tokens.erase(tokens.begin());
+			formatConfig = tokens[0];
+			continue;
+		}
 		if(tokens[0] == "format") {
 			tokens.erase(tokens.begin());
 			for(auto i: tokens) {
 				format += i;
 				format += " ";
 			}
+			formatMap[formatConfig] = format;
+			formatConfig = "__MAKER_DEFAULT";
+			format.clear();
 			continue;
 		}
 		if(tokens[0] == "push") {
 			for(auto i: extensions) {
 				configs[i] = MakerLangConfig {
-					.format = format
+					.configToFormat = formatMap,
 				};
 			}
+			formatMap.clear();
+			formatConfig = "__MAKER_DEFAULT";
 			format.clear();
 			extensions.clear();
 			continue;
@@ -159,6 +173,7 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 	enum mode {
 		MODE_INPUT = 0, // Read each string as if they are input files
 		MODE_OUTPUT, // Read as if the string is output directory
+		MODE_CONFIG, // Read as if the string is the format config
 	};
 	int cmode = MODE_INPUT;
 	/*
@@ -183,6 +198,11 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 			flag.help = true;
 			continue;
 		}
+
+		if(str == "-c") {
+			cmode = MODE_CONFIG;
+			continue;
+		}
 	
 		if(str.starts_with("-")) {
 			printf("Invalid argument: %s\n", strc.c_str());
@@ -196,6 +216,12 @@ int ParseArguments(std::vector<std::string_view>& args, std::vector<std::string>
 
 		if(cmode == MODE_OUTPUT) {
 			flag.outputDir = strc;
+			cmode = MODE_INPUT;
+			continue;
+		}
+
+		if(cmode == MODE_CONFIG) {
+			flag.formatConfig = strc;
 			cmode = MODE_INPUT;
 			continue;
 		}
@@ -227,13 +253,18 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 
 		printf("---%s---\n", file.c_str());
 		std::string fmt = ParseFormat(file, flag, makerCfg).c_str();
+#if defined(DEBUG)
+		printf("-format-\n %s", fmt.c_str());
+#endif
 		if(fmt == "__NOT_FOUND__") {
 			printf("Cannot find configuration for file: %s!\n", file.c_str());
-			return 2;
+			if(flag.breakOnNotZero) return 2;
+			else continue;
 		}
 		if(fmt == "__NO_EXT__") {
 			printf("No extension present for file: %s!\n", file.c_str());
-			return 3;
+			if(flag.breakOnNotZero) return 3;
+			else continue;
 		}
 		retCode = system(fmt.c_str());
 		if(retCode != 0 ) {
