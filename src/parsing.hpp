@@ -116,7 +116,7 @@ int GetMakerConfig(std::string input,
 	}
 	std::string line;
 	std::string format;
-	std::string formatConfig;
+	std::string formatConfig = "__MAKER_DEFAULT";
 	std::map<std::string, std::string> formatMap;
 	std::vector<std::string> tokens ;
 	// push config per extension
