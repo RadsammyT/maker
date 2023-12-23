@@ -47,6 +47,6 @@ int main(int argc, char* argv[]) {
 	printf("\nParsed config\n");
 	printf("%s\n", flag.formatConfig.c_str());
 #endif
-	CompileInput(inputFiles, flag);
-	return 0;
+	int ret = CompileInput(inputFiles, flag);
+	return ret;
 }

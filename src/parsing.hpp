@@ -1,3 +1,4 @@
+#include <exception>
 #include <iostream>
 #include <vector>
 #include <string>
@@ -52,7 +53,16 @@ std::string ParseFormat(std::string inFile, flags flag, std::map<std::string, Ma
 	if(cfgs.count(ext) <= 0) {
 		return "__NOT_FOUND__";
 	}
-	std::string fmt = cfgs.at(ext).configToFormat.at(flag.formatConfig);
+	std::string fmt;
+	try {
+		fmt = cfgs.at(ext).configToFormat.at(flag.formatConfig);
+	} catch (std::exception& e) {
+		printf("ERROR: Cannot find config '%s'\n", flag.formatConfig.c_str());
+#if defined(DEBUG)
+		printf("Exception: %s\n", e.what());
+#endif
+		return "__CONFIG_NOT_FOUND__";
+	}
 	std::string outFile = inFile;
 	outFile.replace(outFile.find(ext), sizeof(ext.c_str()), OUT_SUFFIX);
 	std::string dir = string_format("%s/%s", flag.outputDir.c_str(), outFile.c_str());
@@ -244,7 +254,11 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 	for(auto file: inputFiles) {
 		int ret = GetMakerConfig(file, flag, makerCfg);	
 		if(ret == 404) {
+#if defined (DEBUG)
 			continue;
+#else 
+			return 4;
+#endif
 		}
 		// Create output dir if one does not exist
 		if(!fs::exists(	fs::absolute(file).parent_path() / flag.outputDir)) {
@@ -254,7 +268,7 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 		printf("---%s---\n", file.c_str());
 		std::string fmt = ParseFormat(file, flag, makerCfg).c_str();
 #if defined(DEBUG)
-		printf("-format-\n %s", fmt.c_str());
+		printf("-format %s-\n", fmt.c_str());
 #endif
 		if(fmt == "__NOT_FOUND__") {
 			printf("Cannot find configuration for file: %s!\n", file.c_str());
@@ -265,6 +279,9 @@ int CompileInput(std::vector<std::string> inputFiles, flags flag) {
 			printf("No extension present for file: %s!\n", file.c_str());
 			if(flag.breakOnNotZero) return 3;
 			else continue;
+		}
+		if(fmt == "__CONFIG_NOT_FOUND__") {
+			return 4;
 		}
 		retCode = system(fmt.c_str());
 		if(retCode != 0 ) {
