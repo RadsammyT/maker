@@ -1,7 +1,7 @@
 # Overview
 
-Maker is a build system designed for single-source compilation. This software is particularly 
-useful for simple compilation of test programs that are contained in one single source file.
+Maker is a build system designed for single-source files. This software is particularly 
+useful for coding playgrounds (or a collection of standalone single-source files).
 
 # Behavior 
 
@@ -11,7 +11,8 @@ their respective binaries. By default they will be put into the `bin` directory 
 # Configuration
 
 You can configure compilation commands for a specific language through a `.maker` file 
-located alongside your chosen source files.
+located alongside your chosen source files (or if there is no `.maker` file in your current directory, it will use `~/.config/maker/.maker` instead).
+(TODO: Change default dir to ~/.maker instead)
 
 Configuring the specific command used (in the use case of multiple compilers, etc.) is also
 possible. Add `config CONFIG_WORD` before its respective format to set that format for
