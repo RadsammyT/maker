@@ -7,3 +7,8 @@ compile_commands.json
 test
 
 
+
+
+# Added by cargo
+
+/target
