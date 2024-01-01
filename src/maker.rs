@@ -9,6 +9,7 @@ use std::{
 pub enum MakerError {
     NotEnoughArgs,
     ParsingError(String),
+    ExtensionNotCovered(String),
     ConfigNotFound(String),
     OverrideHelp,
     OverrideMakerCreate,
@@ -18,6 +19,7 @@ pub struct LaSingleton {
     input_files: Vec<String>,
     output_dir: String,
     set_config: String,
+    async_commands: bool,
     configs: Vec<MakerConfig>,
 }
 impl LaSingleton {
@@ -27,6 +29,7 @@ impl LaSingleton {
             output_dir: String::from("bin"),
             configs: Vec::new(),
             set_config: String::from("__DEFAULT__"),
+            async_commands: false
         }
     }
     pub fn get_config(&mut self) -> io::Result<()> {
@@ -79,8 +82,8 @@ impl LaSingleton {
     pub fn parse_args(&mut self) -> Result<(), MakerError> {
         let mut state: ArgsParseState = ArgsParseState::Input;
         let mut args: Vec<String> = env::args().collect();
-        if args.len() == 1 {
-            return Err(MakerError::NotEnoughArgs);
+        if args.len() <= 1 {
+            return Err(MakerError::OverrideHelp);
         }
         args.remove(0);
         for i in args {
@@ -92,11 +95,22 @@ impl LaSingleton {
                 state = ArgsParseState::Config;
                 continue;
             }
+            if i == "-a" || i == "--async" {
+                self.async_commands = true;
+                continue;
+            }
             if i == "--help" {
                 return Err(MakerError::OverrideHelp);
             }
+            if i == "--maker" {
+                return Err(MakerError::OverrideMakerCreate);
+            }
             match state {
                 ArgsParseState::Input => {
+                    if let Err(x) = fs::metadata(i.clone()) {
+                        println!("ERROR! Failed to get metadata for '{}'!\n{}", i, x);
+                        continue;
+                    }
                     if !fs::metadata(i.clone()).unwrap().is_dir() {
                         self.input_files.push(i);
                     }
@@ -140,7 +154,8 @@ impl LaSingleton {
                     .1,
                 );
             if let None = config {
-                return Err(MakerError::ParsingError(i.clone()))
+                println!("ERROR! Extension not covered for file '{}'", i);
+                continue;
             } 
             let config = config.unwrap();
 
@@ -158,7 +173,6 @@ impl LaSingleton {
                     "%output%",
                     format!("{}/{}", self.output_dir, output_file).as_str(),
                 );
-            println!("---{}---", i);
             match fs::create_dir(self.output_dir.clone()) {
                 _ => {}
             }
@@ -167,8 +181,19 @@ impl LaSingleton {
             for arg in format_split {
                 com.arg(arg);
             }
-            if let Err(x) = com.spawn() {
-                println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+            if self.async_commands {
+                if let Err(x) = com.spawn() {
+                    println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                } else {
+                    println!("---{}---", i);
+                }
+            } else {
+                if let Err(x) = com.output() {
+                    println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                } else {
+                    println!("---{}---", i);
+                }
+
             }
         }
         Ok(())

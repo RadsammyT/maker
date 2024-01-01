@@ -12,12 +12,17 @@ fn main() -> io::Result<()> {
                     
                     println!("maker: build system for playgrounds\n");
 
-                    println!("usage: maker [-o -c] test1.rs test2.rs ...");
+                    println!("usage: maker [-o -c] test1.lang test2.lang ...");
                     println!("       -o | --output: Set output directory - default is 'bin'");
                     println!("       -c | --config: Set current config, else format set \n"); 
                     println!("                      without a preceding config is used");
+                    println!("       -a | --async: all commands run via maker are spawned");
+                    println!("                     as children. depending on compilation");
+                    println!("                     time and number of files being compiled,"); 
+                    println!("                     this may be resource intensive and janky.");
                     println!("       --maker: create .maker file template in current dir");
                     println!("       --help : show this help text");
+                    return Ok(())
                 },
                 maker::MakerError::OverrideMakerCreate => {
                     if Path::new(".maker").exists() {
@@ -39,6 +44,9 @@ fn main() -> io::Result<()> {
             }
         },
     };
+    if cfg!(debug_assertions) {
+        maker_main.debug();
+    }
     maker_main.get_config()?;
     if cfg!(debug_assertions) {
         maker_main.debug();
@@ -55,6 +63,9 @@ fn main() -> io::Result<()> {
                 maker::MakerError::ConfigNotFound(x) => {
                     println!("Cannot find config '{}", x);
                 },
+                maker::MakerError::ExtensionNotCovered(x) => {
+                    println!("Extension not covered for file '{}'", x);
+                }
                 _ => {},
             }
         },
