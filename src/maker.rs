@@ -1,10 +1,18 @@
 use std::{
     collections::HashMap,
     env, fs,
-    io::{self, ErrorKind},
-    panic, path,
-    process::Command,
+    io,
+    panic,
+    process::Command, path,
 };
+#[derive(Debug)]
+pub enum MakerError {
+    NotEnoughArgs,
+    ParsingError(String),
+    ConfigNotFound(String),
+    OverrideHelp,
+    OverrideMakerCreate,
+}
 #[derive(Debug)]
 pub struct LaSingleton {
     input_files: Vec<String>,
@@ -68,28 +76,30 @@ impl LaSingleton {
 
         Ok(())
     }
-    pub fn parse_args(&mut self) -> Result<(), ErrorKind> {
+    pub fn parse_args(&mut self) -> Result<(), MakerError> {
         let mut state: ArgsParseState = ArgsParseState::Input;
         let mut args: Vec<String> = env::args().collect();
         if args.len() == 1 {
-            return Err(ErrorKind::Other);
+            return Err(MakerError::NotEnoughArgs);
         }
         args.remove(0);
         for i in args {
-            if i == "-o" {
+            if i == "-o" || i == "--output" {
                 state = ArgsParseState::Output;
                 continue;
             }
-            if i == "-c" {
+            if i == "-c" || i == "--config" {
                 state = ArgsParseState::Config;
                 continue;
             }
             if i == "--help" {
-                return Err(ErrorKind::Other);
+                return Err(MakerError::OverrideHelp);
             }
             match state {
                 ArgsParseState::Input => {
-                    self.input_files.push(i);
+                    if !fs::metadata(i.clone()).unwrap().is_dir() {
+                        self.input_files.push(i);
+                    }
                 }
                 ArgsParseState::Output => {
                     self.output_dir = i;
@@ -114,28 +124,34 @@ impl LaSingleton {
         });
         ret
     }
-    pub fn execute(&mut self) -> Result<(), ErrorKind> {
-        self.input_files.clone().into_iter().for_each(|i| {
+    pub fn execute(&mut self) -> Result<(), MakerError> {
+        for i in self.input_files.clone() {
+            let split_index = i.find('.');
+            match split_index {
+                Some(_) => {},
+                None => {
+                    println!("ERROR: tried to split \"{}\" at '.' but failed! Is it a directory?", i);
+                    continue;
+                },
+            }
             let config = self
                 .find_config(
-                    i.split_at(i.find('.').unwrap_or_else(|| {
-                        println!("ERROR: tried to split \"{}\" via '.' but failed!", i);
-                        std::process::exit(1);
-                    }))
+                    i.split_at(split_index.unwrap())
                     .1,
-                )
-                .unwrap_or_else(|| {
-                    println!("ERROR: tried to find command for {} but failed!", i);
-                    std::process::exit(1);
-                });
+                );
+            if let None = config {
+                return Err(MakerError::ParsingError(i.clone()))
+            } 
+            let config = config.unwrap();
+
             let output_file = i.split_at(i.find('.').unwrap()).0;
             let format = config
                 .configs
-                .get(&self.set_config)
-                .unwrap_or_else(|| -> &String {
-                    println!("ERROR! Config not found: {}", self.set_config);
-                    std::process::exit(1);
-                })
+                .get(&self.set_config);
+            if let None = format {
+                return Err(MakerError::ConfigNotFound(self.set_config.clone()))
+            }
+            let format_real = format.unwrap()
                 .clone()
                 .replace("%file%", i.as_str())
                 .replace(
@@ -146,13 +162,15 @@ impl LaSingleton {
             match fs::create_dir(self.output_dir.clone()) {
                 _ => {}
             }
-            let mut format_split = format.split_whitespace();
+            let mut format_split = format_real.split_whitespace();
             let mut com = Command::new(format_split.next().unwrap());
             for arg in format_split {
                 com.arg(arg);
             }
-            com.spawn().expect(format!("ERROR!\n{}\n", format).as_str());
-        });
+            if let Err(x) = com.spawn() {
+                println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+            }
+        }
         Ok(())
     }
     pub(crate) fn debug(&self) {
