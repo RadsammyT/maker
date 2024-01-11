@@ -1,9 +1,7 @@
 use std::{
     collections::HashMap,
     env, fs,
-    io,
-    panic,
-    process::Command, path,
+    process::{Command, Child}, path
 };
 #[derive(Debug)]
 pub enum MakerError {
@@ -11,6 +9,7 @@ pub enum MakerError {
     ParsingError(String),
     ExtensionNotCovered(String),
     ConfigNotFound(String),
+    DotMakerNotFound,
     OverrideHelp,
     OverrideMakerCreate,
 }
@@ -19,7 +18,8 @@ pub struct LaSingleton {
     input_files: Vec<String>,
     output_dir: String,
     set_config: String,
-    async_commands: bool,
+    pub async_commands: bool,
+    pub async_processes: Vec<(Child, String)>,
     configs: Vec<MakerConfig>,
 }
 impl LaSingleton {
@@ -29,15 +29,25 @@ impl LaSingleton {
             output_dir: String::from("bin"),
             configs: Vec::new(),
             set_config: String::from("__DEFAULT__"),
-            async_commands: false
+            async_commands: false,
+            async_processes: Vec::new()
         }
     }
-    pub fn get_config(&mut self) -> io::Result<()> {
-        let path = path::Path::new(".maker");
+    pub fn get_config(&mut self) -> Result<(), MakerError> {
+        let mut path = path::Path::new("maker");
+        let mut path_str = path.to_string_lossy().to_string();
         if !path.exists() {
-            panic!(".maker not found!");
+            if let Some(home) = option_env!("HOME") {
+                path_str.insert_str(0, format!("{}/", home).as_str());
+                path = &path::Path::new(&path_str);
+                if !path.exists() {
+                    return Err(MakerError::DotMakerNotFound);
+                }
+            } else {
+                return Err(MakerError::DotMakerNotFound);
+            }
         }
-        let file = fs::read_to_string(".maker")?;
+        let file = fs::read_to_string(path_str).unwrap();
         let mut temp_config: MakerConfig = MakerConfig::default();
         let mut config_string = String::from("__DEFAULT__");
         if cfg!(debug_assertions) {
@@ -182,16 +192,17 @@ impl LaSingleton {
                 com.arg(arg);
             }
             if self.async_commands {
-                if let Err(x) = com.spawn() {
-                    println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
-                } else {
-                    println!("---{}---", i);
+                match com.spawn() {
+                    Ok(x) => {self.async_processes.push((x, i))},
+                    Err(x) => {
+                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                    }
                 }
             } else {
+                println!("---{}---", i);
                 if let Err(x) = com.output() {
                     println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
                 } else {
-                    println!("---{}---", i);
                 }
 
             }

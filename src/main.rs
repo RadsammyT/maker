@@ -20,16 +20,16 @@ fn main() -> io::Result<()> {
                     println!("                     as children. depending on compilation");
                     println!("                     time and number of files being compiled,"); 
                     println!("                     this may be resource intensive and janky.");
-                    println!("       --maker: create .maker file template in current dir");
+                    println!("       --maker: create maker file template in current dir");
                     println!("       --help : show this help text");
                     return Ok(())
                 },
                 maker::MakerError::OverrideMakerCreate => {
-                    if Path::new(".maker").exists() {
-                        println!(".maker already exists!");
+                    if Path::new("maker").exists() {
+                        println!("maker already exists!");
                         return Ok(())
                     }
-                    if let Ok(mut x) = fs::File::create(".maker") {
+                    if let Ok(mut x) = fs::File::create("maker") {
                         let _ =
                             writeln!(x, "extension .lang # You can add multiple extensions per config");
                         let _ = writeln!(x, "\tformat langc %file% -o %output%\n");
@@ -47,12 +47,41 @@ fn main() -> io::Result<()> {
     if cfg!(debug_assertions) {
         maker_main.debug();
     }
-    maker_main.get_config()?;
+    match maker_main.get_config() {
+        Ok(_) => {},
+        Err(x) => {
+            print!("ERROR! ");
+            match x {
+                maker::MakerError::DotMakerNotFound => {
+                    println!("maker not found!");
+                }
+                _ => {println!("{x:?}")}
+            }
+        },
+    }
     if cfg!(debug_assertions) {
         maker_main.debug();
     }
     match maker_main.execute() {
-        Ok(_) => {},
+        Ok(_) => {
+            for i in maker_main.async_processes {
+                let id = i.0.id();
+                println!("---waiting for {}|{}---", i.1, id);
+                let result = i.0.wait_with_output();
+                match result {
+                    Ok(y) => {
+                        if !y.status.success() {
+                            println!("ERROR! {}|{} RETURNED {}", i.1, id, y.status);
+                        } else {
+
+                        }
+                    },
+                    Err(y) => {
+                        println!("ERROR: {:?} | {:?}", y.kind(), y.raw_os_error());
+                    },
+                }
+            }
+        },
         Err(err) => {
             print!("ERROR! ");
             match err {
@@ -70,6 +99,8 @@ fn main() -> io::Result<()> {
             }
         },
     };
-    println!("--- Done. ---");
+    if maker_main.async_commands {
+        println!("--- Done. ---");
+    }
     Ok(())
 }
