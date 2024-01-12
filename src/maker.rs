@@ -18,6 +18,7 @@ pub struct LaSingleton {
     input_files: Vec<String>,
     output_dir: String,
     set_config: String,
+    additional_flags: String,
     pub async_commands: bool,
     pub async_processes: Vec<(Child, String)>,
     configs: Vec<MakerConfig>,
@@ -30,7 +31,8 @@ impl LaSingleton {
             configs: Vec::new(),
             set_config: String::from("__DEFAULT__"),
             async_commands: false,
-            async_processes: Vec::new()
+            async_processes: Vec::new(),
+            additional_flags: String::new(),
         }
     }
     pub fn get_config(&mut self) -> Result<(), MakerError> {
@@ -109,6 +111,10 @@ impl LaSingleton {
                 self.async_commands = true;
                 continue;
             }
+            if i == "-f" || i == "--flags" {
+                state = ArgsParseState::AdditionalFlags;
+                continue;
+            }
             if i == "--help" {
                 return Err(MakerError::OverrideHelp);
             }
@@ -133,6 +139,10 @@ impl LaSingleton {
                     self.set_config = i;
                     state = ArgsParseState::Input;
                 }
+                ArgsParseState::AdditionalFlags => {
+                    self.additional_flags = i;
+                    state = ArgsParseState::Input;
+                },
             }
         }
         Ok(())
@@ -176,21 +186,26 @@ impl LaSingleton {
             if let None = format {
                 return Err(MakerError::ConfigNotFound(self.set_config.clone()))
             }
-            let format_real = format.unwrap()
+            let mut format_real = format.unwrap()
                 .clone()
                 .replace("%file%", i.as_str())
                 .replace(
                     "%output%",
                     format!("{}/{}", self.output_dir, output_file).as_str(),
                 );
+            format_real
+                .push_str(self.additional_flags.as_str());
+            dbg!(&format_real);
             match fs::create_dir(self.output_dir.clone()) {
                 _ => {}
             }
             let mut format_split = format_real.split_whitespace();
+            dbg!(&format_split);
             let mut com = Command::new(format_split.next().unwrap());
             for arg in format_split {
                 com.arg(arg);
             }
+            dbg!(&com);
             if self.async_commands {
                 match com.spawn() {
                     Ok(x) => {self.async_processes.push((x, i))},
@@ -218,6 +233,7 @@ enum ArgsParseState {
     Input,
     Output,
     Config,
+    AdditionalFlags,
 }
 
 #[derive(Debug, Clone)]

@@ -12,10 +12,11 @@ fn main() -> io::Result<()> {
                     
                     println!("maker: build system for playgrounds\n");
 
-                    println!("usage: maker [-o -c] test1.lang test2.lang ...");
+                    println!("usage: maker [-flag...] test1.lang test2.lang ...");
                     println!("       -o | --output: Set output directory - default is 'bin'");
                     println!("       -c | --config: Set current config, else format set \n"); 
                     println!("                      without a preceding config is used");
+                    println!("       -f | --flags:  Set additional flags for all formats");
                     println!("       -a | --async: all commands run via maker are spawned");
                     println!("                     as children. depending on compilation");
                     println!("                     time and number of files being compiled,"); 
