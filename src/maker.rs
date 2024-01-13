@@ -195,17 +195,14 @@ impl LaSingleton {
                 );
             format_real
                 .push_str(self.additional_flags.as_str());
-            dbg!(&format_real);
             match fs::create_dir(self.output_dir.clone()) {
                 _ => {}
             }
             let mut format_split = format_real.split_whitespace();
-            dbg!(&format_split);
             let mut com = Command::new(format_split.next().unwrap());
             for arg in format_split {
                 com.arg(arg);
             }
-            dbg!(&com);
             if self.async_commands {
                 match com.spawn() {
                     Ok(x) => {self.async_processes.push((x, i))},

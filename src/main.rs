@@ -14,15 +14,16 @@ fn main() -> io::Result<()> {
 
                     println!("usage: maker [-flag...] test1.lang test2.lang ...");
                     println!("       -o | --output: Set output directory - default is 'bin'");
-                    println!("       -c | --config: Set current config, else format set \n"); 
+                    println!("       -c | --config: Set current config, else format set"); 
                     println!("                      without a preceding config is used");
                     println!("       -f | --flags:  Set additional flags for all formats");
                     println!("       -a | --async: all commands run via maker are spawned");
-                    println!("                     as children. depending on compilation");
+                    println!("                     as children, and ran at the same time,");
+                    println!("                     thus being \"async\". depending on compilation");
                     println!("                     time and number of files being compiled,"); 
                     println!("                     this may be resource intensive and janky.");
-                    println!("       --maker: create maker file template in current dir");
-                    println!("       --help : show this help text");
+                    println!("            --maker: create maker file template in current dir");
+                    println!("            --help : show this help text");
                     return Ok(())
                 },
                 maker::MakerError::OverrideMakerCreate => {
@@ -32,7 +33,7 @@ fn main() -> io::Result<()> {
                     }
                     if let Ok(mut x) = fs::File::create("maker") {
                         let _ =
-                            writeln!(x, "extension .lang # You can add multiple extensions per config");
+                            writeln!(x, "extension .lang # .lang2 .lang3 # You can add multiple extensions here.");
                         let _ = writeln!(x, "\tformat langc %file% -o %output%\n");
                         let _ = writeln!(x, "\tconfig testConfig");
                         let _ = writeln!(x, "\tformat testConfigLangC %file% -o %output%");
