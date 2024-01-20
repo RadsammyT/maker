@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
-    env, fs,
-    process::{Command, Child}, path
+    env, fs, path,
+    process::{Child, Command}, str,
 };
 #[derive(Debug)]
 pub enum MakerError {
@@ -51,19 +51,42 @@ impl LaSingleton {
         }
         let file = fs::read_to_string(path_str).unwrap();
         let mut temp_config: MakerConfig = MakerConfig::default();
+        let mut is_pushed = false;
         let mut config_string = String::from("__DEFAULT__");
         if cfg!(debug_assertions) {
             dbg!(&file);
         }
-        for mut line in file.lines() {
-            line = line.trim_start();
+        let mut line_iter = file.lines();
+        while let Some(line_str) = line_iter.next() {
+            let mut line = String::from(line_str);
+            line = line.trim().to_string(); 
             if let Some(c) = line.find('#') {
-                line = line.split_at(c).0;
+                line = line.split_at(c).0.to_string();
             }
             {
+                if line.ends_with("\\") {
+                    line = line.trim_end_matches("\\").to_string();
+                    loop {
+                        let next_line = line_iter.next();
+                        let mut break_loop = false;
+                        if let Some(mut str) = next_line {
+                            if !str.ends_with("\\") {
+                                break_loop = true;
+                            }
+                            str = str.trim();
+                            str = str.trim_end_matches("\\");
+                            line.push_str(str);
+
+                        }
+                        if break_loop {
+                            break;
+                        }
+                    }
+                }
                 if line.starts_with("extension") {
-                    line = line.trim_start_matches("extension");
+                    line = line.trim_start_matches("extension").to_string();
                     temp_config.extensions = split_string(line.to_string());
+                    is_pushed = false;
                 }
 
                 if line.starts_with("config") {
@@ -85,10 +108,13 @@ impl LaSingleton {
                 if line.starts_with("push") {
                     self.configs.push(temp_config.clone());
                     temp_config.clear();
+                    is_pushed = true;
                 }
             }
         }
-
+        if !is_pushed {
+            return Err(MakerError::ParsingError("Extension config not pushed.".to_string()))
+        }
         Ok(())
     }
     pub fn parse_args(&mut self) -> Result<(), MakerError> {
@@ -142,7 +168,7 @@ impl LaSingleton {
                 ArgsParseState::AdditionalFlags => {
                     self.additional_flags = i;
                     state = ArgsParseState::Input;
-                },
+                }
             }
         }
         Ok(())
@@ -162,39 +188,36 @@ impl LaSingleton {
         for i in self.input_files.clone() {
             let split_index = i.find('.');
             match split_index {
-                Some(_) => {},
+                Some(_) => {}
                 None => {
-                    println!("ERROR: tried to split \"{}\" at '.' but failed! Is it a directory?", i);
+                    println!(
+                        "ERROR: tried to split \"{}\" at '.' but failed! Is it a directory?",
+                        i
+                    );
                     continue;
-                },
+                }
             }
-            let config = self
-                .find_config(
-                    i.split_at(split_index.unwrap())
-                    .1,
-                );
+            let config = self.find_config(i.split_at(split_index.unwrap()).1);
             if let None = config {
                 println!("ERROR! Extension not covered for file '{}'", i);
                 continue;
-            } 
+            }
             let config = config.unwrap();
 
             let output_file = i.split_at(i.find('.').unwrap()).0;
-            let format = config
-                .configs
-                .get(&self.set_config);
+            let format = config.configs.get(&self.set_config);
             if let None = format {
-                return Err(MakerError::ConfigNotFound(self.set_config.clone()))
+                return Err(MakerError::ConfigNotFound(self.set_config.clone()));
             }
-            let mut format_real = format.unwrap()
+            let mut format_real = format
+                .unwrap()
                 .clone()
                 .replace("%file%", i.as_str())
                 .replace(
                     "%output%",
                     format!("{}/{}", self.output_dir, output_file).as_str(),
                 );
-            format_real
-                .push_str(self.additional_flags.as_str());
+            format_real.push_str(self.additional_flags.as_str());
             match fs::create_dir(self.output_dir.clone()) {
                 _ => {}
             }
@@ -205,18 +228,26 @@ impl LaSingleton {
             }
             if self.async_commands {
                 match com.spawn() {
-                    Ok(x) => {self.async_processes.push((x, i))},
+                    Ok(x) => self.async_processes.push((x, i)),
                     Err(x) => {
                         println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
                     }
                 }
             } else {
                 println!("---{}---", i);
-                if let Err(x) = com.output() {
-                    println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
-                } else {
-                }
-
+                match com.output() {
+                    Ok(x) => {
+                        if let Ok(s) = std::str::from_utf8(x.stdout.as_slice()) {
+                            print!("{}", s);
+                        }
+                        if let Ok(s) = std::str::from_utf8(x.stderr.as_slice()) {
+                            print!("{}", s);
+                        }
+                    },
+                    Err(x) => {
+                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                    },
+                } 
             }
         }
         Ok(())
