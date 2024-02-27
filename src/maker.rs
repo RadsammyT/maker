@@ -10,6 +10,7 @@ pub enum MakerError {
     ExtensionNotCovered(String),
     ConfigNotFound(String),
     DotMakerNotFound,
+    MiscError(String),
     OverrideHelp,
     OverrideMakerCreate,
 }
@@ -36,6 +37,21 @@ impl LaSingleton {
         }
     }
     pub fn get_config(&mut self) -> Result<(), MakerError> {
+        // rename any instance of ".maker" to maker?
+        if let Ok(_ok) = fs::metadata(".maker") {
+            if let Err(_err) = fs::metadata("maker") {
+                println!(".maker exists but maker doesn't! renaming '.maker' to 'maker'...");
+                if let Err(uhoh) = fs::rename(".maker", "maker") {
+                    return Err(MakerError::MiscError(format!(
+                                    "Unable to rename '.maker' to 'maker'! {}",
+                                    uhoh
+                                )))
+                }
+            } else {
+                println!(".maker exists, but so does maker! you should prolly delete '.maker'");
+            }
+        }
+
         let mut path = path::Path::new("maker");
         let mut path_str = path.to_string_lossy().to_string();
         if !path.exists() {
@@ -64,17 +80,17 @@ impl LaSingleton {
                 line = line.split_at(c).0.to_string();
             }
             {
-                if line.ends_with("\\") {
-                    line = line.trim_end_matches("\\").to_string();
+                if line.ends_with('\\') {
+                    line = line.trim_end_matches('\\').to_string();
                     loop {
                         let next_line = line_iter.next();
                         let mut break_loop = false;
                         if let Some(mut str) = next_line {
-                            if !str.ends_with("\\") {
+                            if !str.ends_with('\\') {
                                 break_loop = true;
                             }
                             str = str.trim();
-                            str = str.trim_end_matches("\\");
+                            str = str.trim_end_matches('\\');
                             line.push_str(str);
 
                         }
@@ -198,7 +214,7 @@ impl LaSingleton {
                 }
             }
             let config = self.find_config(i.split_at(split_index.unwrap()).1);
-            if let None = config {
+            if config.is_none() {
                 println!("ERROR! Extension not covered for file '{}'", i);
                 continue;
             }
@@ -206,7 +222,7 @@ impl LaSingleton {
 
             let output_file = i.split_at(i.find('.').unwrap()).0;
             let format = config.configs.get(&self.set_config);
-            if let None = format {
+            if format.is_none() {
                 return Err(MakerError::ConfigNotFound(self.set_config.clone()));
             }
             let mut format_real = format
@@ -218,9 +234,7 @@ impl LaSingleton {
                     format!("{}/{}", self.output_dir, output_file).as_str(),
                 );
             format_real.push_str(self.additional_flags.as_str());
-            match fs::create_dir(self.output_dir.clone()) {
-                _ => {}
-            }
+            let _ = fs::create_dir(self.output_dir.clone()); // dir creation result doesnt matter
             let mut format_split = format_real.split_whitespace();
             let mut com = Command::new(format_split.next().unwrap());
             for arg in format_split {
@@ -264,19 +278,12 @@ enum ArgsParseState {
     AdditionalFlags,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 struct MakerConfig {
     extensions: Vec<String>,
     configs: HashMap<String, String>, // or, config to format.
 }
-impl Default for MakerConfig {
-    fn default() -> Self {
-        Self {
-            extensions: Default::default(),
-            configs: Default::default(),
-        }
-    }
-}
+
 impl MakerConfig {
     fn clear(&mut self) {
         self.extensions.clear();
