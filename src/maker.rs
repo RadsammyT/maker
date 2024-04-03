@@ -14,6 +14,27 @@ pub enum MakerError {
     OverrideHelp,
     OverrideMakerCreate,
 }
+
+enum ArgsParseState {
+    Input,
+    Output,
+    Config,
+    AdditionalFlags,
+}
+
+#[derive(Debug, Clone, Default)]
+struct MakerConfig {
+    extensions: Vec<String>,
+    configs: HashMap<String, String>, // or, config to format.
+}
+
+impl MakerConfig {
+    fn clear(&mut self) {
+        self.extensions.clear();
+        self.configs.clear();
+    }
+}
+
 #[derive(Debug)]
 pub struct LaSingleton {
     input_files: Vec<String>,
@@ -229,6 +250,7 @@ impl LaSingleton {
                 .unwrap()
                 .clone()
                 .replace("%file%", i.as_str())
+                .replace("%file_no_ext%", i.split_at(i.find('.').unwrap()).0)
                 .replace(
                     "%output%",
                     format!("{}/{}", self.output_dir, output_file).as_str(),
@@ -271,25 +293,6 @@ impl LaSingleton {
     }
 }
 
-enum ArgsParseState {
-    Input,
-    Output,
-    Config,
-    AdditionalFlags,
-}
-
-#[derive(Debug, Clone, Default)]
-struct MakerConfig {
-    extensions: Vec<String>,
-    configs: HashMap<String, String>, // or, config to format.
-}
-
-impl MakerConfig {
-    fn clear(&mut self) {
-        self.extensions.clear();
-        self.configs.clear();
-    }
-}
 
 fn split_string(mut inp: String) -> Vec<String> {
     let mut buf = String::new();
