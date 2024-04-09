@@ -81,7 +81,7 @@ fn main() -> io::Result<()> {
                     Ok(y) => {
                         if !y.status.success() {
                             println!("ERROR! {}|{} RETURNED {}", i.1, id, y.status);
-                        } 
+                        }
                     }
                     Err(y) => {
                         println!("ERROR: {:?} | {:?}", y.kind(), y.raw_os_error());
