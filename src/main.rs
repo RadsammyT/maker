@@ -39,8 +39,10 @@ fn main() -> io::Result<()> {
                             writeln!(x, "extension .lang # .lang2 .lang3 # You can add multiple extensions here.");
                         let _ = writeln!(x, "\tformat langc %file% -o %output%\n");
                         let _ = writeln!(x, "\tconfig testConfig");
-                        let _ = writeln!(x, "\tformat testConfigLangC %file% -o %output%");
-                        let _ = writeln!(x, "push");
+                        let _ = writeln!(x, "\t\tformat testConfigLangC %file% -o %output%");
+                        let _ = writeln!(x, "\t\tcomment //MAKER: ");
+                        let _ = writeln!(x, "\tend-config");
+                        let _ = writeln!(x, "end-extension");
                         return Ok(());
                     }
                 }

@@ -1,8 +1,9 @@
 use std::{
-    collections::HashMap,
-    env, fs, path,
-    process::{Child, Command}, str,
+    collections::HashMap, env, fs, io::Read, path, process::{Child, Command}, str
 };
+
+const NO_CONFIG: &str = "__DEFAULT__";
+
 #[derive(Debug)]
 pub enum MakerError {
     NotEnoughArgs,
@@ -23,12 +24,18 @@ enum ArgsParseState {
 }
 
 #[derive(Debug, Clone, Default)]
-struct MakerConfig {
-    extensions: Vec<String>,
-    configs: HashMap<String, String>, // or, config to format.
+struct SubConfig {
+    format: String,
+    comment_cmd_prefix: Option<String>,
 }
 
-impl MakerConfig {
+#[derive(Debug, Clone, Default)]
+struct ExtensionConfig {
+    extensions: Vec<String>,
+    configs: HashMap<String, SubConfig>, // or, config to format.
+}
+
+impl ExtensionConfig {
     fn clear(&mut self) {
         self.extensions.clear();
         self.configs.clear();
@@ -43,15 +50,15 @@ pub struct LaSingleton {
     additional_flags: String,
     pub async_commands: bool,
     pub async_processes: Vec<(Child, String)>,
-    configs: Vec<MakerConfig>,
+    config_list: Vec<ExtensionConfig>,
 }
 impl LaSingleton {
     pub fn init() -> LaSingleton {
         LaSingleton {
             input_files: Vec::new(),
             output_dir: String::from("bin"),
-            configs: Vec::new(),
-            set_config: String::from("__DEFAULT__"),
+            config_list: Vec::new(),
+            set_config: String::from(NO_CONFIG),
             async_commands: false,
             async_processes: Vec::new(),
             additional_flags: String::new(),
@@ -87,9 +94,10 @@ impl LaSingleton {
             }
         }
         let file = fs::read_to_string(path_str).unwrap();
-        let mut temp_config: MakerConfig = MakerConfig::default();
-        let mut is_pushed = false;
-        let mut config_string = String::from("__DEFAULT__");
+        let mut temp_config: ExtensionConfig = ExtensionConfig::default();
+        let mut ext_is_pushed = true;
+        let mut conf_is_pushed = true;
+        let mut config_string = String::from(NO_CONFIG);
         if cfg!(debug_assertions) {
             dbg!(&file);
         }
@@ -98,7 +106,9 @@ impl LaSingleton {
             let mut line = String::from(line_str);
             line = line.trim().to_string(); 
             if let Some(c) = line.find('#') {
-                line = line.split_at(c).0.to_string();
+                if !line.starts_with("comment") {
+                    line = line.split_at(c).0.to_string();
+                }
             }
             {
                 if line.ends_with('\\') {
@@ -123,7 +133,7 @@ impl LaSingleton {
                 if line.starts_with("extension") {
                     line = line.trim_start_matches("extension").to_string();
                     temp_config.extensions = split_string(line.to_string());
-                    is_pushed = false;
+                    ext_is_pushed = false;
                 }
 
                 if line.starts_with("config") {
@@ -132,25 +142,53 @@ impl LaSingleton {
                         .trim_start()
                         .trim_end()
                         .to_string();
+                    conf_is_pushed = false;
                 }
 
                 if line.starts_with("format") {
                     temp_config
                         .configs
                         .entry(config_string.clone())
-                        .or_insert(line.trim_start_matches("format ").trim_end().to_string());
-                    config_string = "__DEFAULT__".to_owned();
+                        .or_insert(
+                            SubConfig {
+                                format: "".to_owned(),
+                                comment_cmd_prefix: None,
+                            }
+                            ).format = line.trim_start_matches("format ").trim_end().to_string();
                 }
 
-                if line.starts_with("push") {
-                    self.configs.push(temp_config.clone());
+                if line.starts_with("comment") {
+                    temp_config
+                        .configs
+                        .entry(config_string.clone())
+                        .or_insert(
+                                SubConfig {
+                                    format: String::new(),
+                                    comment_cmd_prefix: Some(String::new())
+                                }
+                            ).comment_cmd_prefix = Some(line
+                                        .trim_start_matches("comment ")
+                                        .trim_end()
+                                        .to_string());
+                }
+
+                if line.starts_with("end-extension") {
+                    self.config_list.push(temp_config.clone());
                     temp_config.clear();
-                    is_pushed = true;
+                    ext_is_pushed = true;
+                }
+
+                if line.starts_with("end-config")  {
+                    config_string = NO_CONFIG.to_owned();
+                    conf_is_pushed = true;
                 }
             }
         }
-        if !is_pushed {
+        if !ext_is_pushed {
             return Err(MakerError::ParsingError("Extension config not pushed.".to_string()))
+        }
+        if !conf_is_pushed {
+            return Err(MakerError::ParsingError("Sub config not pushed.".to_string()))
         }
         Ok(())
     }
@@ -210,9 +248,9 @@ impl LaSingleton {
         }
         Ok(())
     }
-    fn find_config(&mut self, extension: &str) -> Option<MakerConfig> {
-        let mut ret: Option<MakerConfig> = None;
-        self.configs.iter().for_each(|i| {
+    fn find_config(&mut self, extension: &str) -> Option<ExtensionConfig> {
+        let mut ret: Option<ExtensionConfig> = None;
+        self.config_list.iter().for_each(|i| {
             i.extensions.iter().for_each(|j| {
                 if extension.ends_with(j) {
                     ret = Some(i.clone());
@@ -221,6 +259,7 @@ impl LaSingleton {
         });
         ret
     }
+
     pub fn execute(&mut self) -> Result<(), MakerError> {
         for i in self.input_files.clone() {
             let split_index = i.find('.');
@@ -242,12 +281,13 @@ impl LaSingleton {
             let config = config.unwrap();
 
             let output_file = i.split_at(i.find('.').unwrap()).0;
-            let format = config.configs.get(&self.set_config);
-            if format.is_none() {
+            let sub_config = config.configs.get(&self.set_config);
+            if sub_config.is_none() {
                 return Err(MakerError::ConfigNotFound(self.set_config.clone()));
             }
-            let mut format_real = format
+            let mut format = sub_config
                 .unwrap()
+                .format
                 .clone()
                 .replace("%file%", i.as_str())
                 .replace("%file_no_ext%", i.split_at(i.find('.').unwrap()).0)
@@ -255,9 +295,17 @@ impl LaSingleton {
                     "%output%",
                     format!("{}/{}", self.output_dir, output_file).as_str(),
                 );
-            format_real.push_str(self.additional_flags.as_str());
+            if cfg!(debug_assertions) {
+                dbg!(&format);
+            }
+            let commented_flags = self.get_comment_flags(i.to_owned(), sub_config
+                                                            .unwrap()
+                                                            .comment_cmd_prefix.clone());
+
+            format.push_str(self.additional_flags.as_str());
             let _ = fs::create_dir(self.output_dir.clone()); // dir creation result doesnt matter
-            let mut format_split = format_real.split_whitespace();
+            format.push_str(commented_flags.as_str());
+            let mut format_split = format.split_whitespace();
             let mut com = Command::new(format_split.next().unwrap());
             for arg in format_split {
                 com.arg(arg);
@@ -266,7 +314,7 @@ impl LaSingleton {
                 match com.spawn() {
                     Ok(x) => self.async_processes.push((x, i)),
                     Err(x) => {
-                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format);
                     }
                 }
             } else {
@@ -281,16 +329,41 @@ impl LaSingleton {
                         }
                     },
                     Err(x) => {
-                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format_real);
+                        println!("COMMAND ERROR:\nERROR_INFO:{}\nFORMAT:{}", x, format);
                     },
                 } 
             }
         }
         Ok(())
     }
+
+    /// Get flags from comments in the specified file. 
+    /// File must be checked to exist beforehand.
+    fn get_comment_flags(&self, file: String, comment: Option<String>) -> String {
+        if comment.is_none() {
+            return String::from("");
+        }
+        let mut handle = fs::File::open(file).unwrap();
+        let mut file_str = String::new();
+        let _ = handle.read_to_string(&mut file_str);
+
+        let mut ret = String::new();
+        for line in file_str.split('\n') {
+            let cmd = " ".to_owned() + line.split_once(&comment.clone().unwrap()).unwrap_or(("","")).1;
+            if cfg!(debug_assertions) && !cmd.trim().is_empty() {
+                dbg!(&cmd);
+            }
+            ret.push_str(&cmd);
+        }
+
+        ret
+    }
+
     pub(crate) fn debug(&self) {
         dbg!(&self);
     }
+
+
 }
 
 
