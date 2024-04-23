@@ -37,6 +37,7 @@ struct SubConfig {
 #[derive(Debug, Clone, Default)]
 struct ExtensionConfig {
     extensions: Vec<String>,
+    comment: Option<String>,
     configs: HashMap<String, SubConfig>, // or, config to format.
 }
 
@@ -172,6 +173,11 @@ impl LaSingleton {
                         Some(line.trim_start_matches("comment ").trim_end().to_string());
                 }
 
+                if line.starts_with("all-comment") && config_string == NO_CONFIG {
+                    temp_config.comment = 
+                        Some(line.trim_start_matches("all-comment ").trim_end().to_string());
+                }
+
                 if line.starts_with("end-extension") {
                     self.config_list.push(temp_config.clone());
                     temp_config.clear();
@@ -303,16 +309,23 @@ impl LaSingleton {
                 dbg!(&format);
             }
             let commented_flags = self
-                .get_comment_flags(i.to_owned(), sub_config.unwrap().comment_cmd_prefix.clone());
+                .get_comment_flags(i.to_owned(), 
+                                   sub_config.unwrap().comment_cmd_prefix.clone(),
+                                   config.comment
+                                   );
 
             format.push_str(self.additional_flags.as_str());
-            let _ = fs::create_dir(self.output_dir.clone()); // dir creation result doesnt matter
             format.push_str(commented_flags.as_str());
+
             let mut format_split = format.split_whitespace();
             let mut com = Command::new(format_split.next().unwrap());
+
             for arg in format_split {
                 com.arg(arg);
             }
+
+            let _ = fs::create_dir(self.output_dir.clone()); // dir creation result doesnt matter
+
             if self.async_commands {
                 match com.spawn() {
                     Ok(x) => self.async_processes.push((x, i)),
@@ -342,8 +355,11 @@ impl LaSingleton {
 
     /// Get flags from comments in the specified file.
     /// File must be checked to exist beforehand.
-    fn get_comment_flags(&self, file: String, comment: Option<String>) -> String {
-        if comment.is_none() {
+    fn get_comment_flags(&self,
+                         file: String,
+                         config_comment: Option<String>,
+                         all_comment: Option<String>) -> String {
+        if config_comment.is_none() {
             return String::from("");
         }
         let mut handle = fs::File::open(file).unwrap();
@@ -352,11 +368,19 @@ impl LaSingleton {
 
         let mut ret = String::new();
         for line in file_str.split('\n') {
-            let cmd = " ".to_owned()
+            let mut cmd = " ".to_owned()
                 + line
-                    .split_once(&comment.clone().unwrap())
+                    .split_once(&config_comment.clone().unwrap())
                     .unwrap_or(("", ""))
-                    .1;
+                    .1
+                + " ";
+            if all_comment.is_some() {
+                cmd += &(" ".to_owned()
+                    + line
+                        .split_once(&all_comment.clone().unwrap())
+                        .unwrap_or(("", ""))
+                        .1);
+            }
             if cfg!(debug_assertions) && !cmd.trim().is_empty() {
                 dbg!(&cmd);
             }
