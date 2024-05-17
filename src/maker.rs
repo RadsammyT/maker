@@ -91,7 +91,7 @@ impl LaSingleton {
         if !path.exists() {
             if let Some(home) = option_env!("HOME") {
                 path_str.insert_str(0, format!("{}/", home).as_str());
-                path = &path::Path::new(&path_str);
+                path = path::Path::new(&path_str);
                 if !path.exists() {
                     return Err(MakerError::DotMakerNotFound);
                 }
@@ -139,18 +139,14 @@ impl LaSingleton {
                     line = line.trim_start_matches("extension").to_string();
                     temp_config.extensions = split_string(line.to_string());
                     ext_is_pushed = false;
-                }
-
-                if line.starts_with("config") {
+                } else if line.starts_with("config") {
                     config_string = line
                         .trim_start_matches("config")
                         .trim_start()
                         .trim_end()
                         .to_string();
                     conf_is_pushed = false;
-                }
-
-                if line.starts_with("format") {
+                } else if line.starts_with("format") {
                     temp_config
                         .configs
                         .entry(config_string.clone())
@@ -159,9 +155,7 @@ impl LaSingleton {
                             comment_cmd_prefix: None,
                         })
                         .format = line.trim_start_matches("format ").trim_end().to_string();
-                }
-
-                if line.starts_with("comment") {
+                } else if line.starts_with("comment") {
                     temp_config
                         .configs
                         .entry(config_string.clone())
@@ -171,22 +165,21 @@ impl LaSingleton {
                         })
                         .comment_cmd_prefix =
                         Some(line.trim_start_matches("comment ").trim_end().to_string());
-                }
-
-                if line.starts_with("all-comment") && config_string == NO_CONFIG {
-                    temp_config.comment = 
-                        Some(line.trim_start_matches("all-comment ").trim_end().to_string());
-                }
-
-                if line.starts_with("end-extension") {
+                } else if line.starts_with("all-comment") && config_string == NO_CONFIG {
+                    temp_config.comment = Some(
+                        line.trim_start_matches("all-comment ")
+                            .trim_end()
+                            .to_string(),
+                    );
+                } else if line.starts_with("end-extension") {
                     self.config_list.push(temp_config.clone());
                     temp_config.clear();
                     ext_is_pushed = true;
-                }
-
-                if line.starts_with("end-config") {
-                    config_string = NO_CONFIG.to_owned();
+                } else if line.starts_with("end-config") {
+                    NO_CONFIG.clone_into(&mut config_string);
                     conf_is_pushed = true;
+                } else if !line.trim().to_string().is_empty() {
+                    println!("---UNCOVERED LINE---\n{}\n{:?}", line, line.as_bytes());
                 }
             }
         }
@@ -308,11 +301,11 @@ impl LaSingleton {
             if cfg!(debug_assertions) {
                 dbg!(&format);
             }
-            let commented_flags = self
-                .get_comment_flags(i.to_owned(), 
-                                   sub_config.unwrap().comment_cmd_prefix.clone(),
-                                   config.comment
-                                   );
+            let commented_flags = self.get_comment_flags(
+                i.to_owned(),
+                sub_config.unwrap().comment_cmd_prefix.clone(),
+                config.comment,
+            );
 
             format.push_str(self.additional_flags.as_str());
             format.push_str(commented_flags.as_str());
@@ -355,10 +348,12 @@ impl LaSingleton {
 
     /// Get flags from comments in the specified file.
     /// File must be checked to exist beforehand.
-    fn get_comment_flags(&self,
-                         file: String,
-                         config_comment: Option<String>,
-                         all_comment: Option<String>) -> String {
+    fn get_comment_flags(
+        &self,
+        file: String,
+        config_comment: Option<String>,
+        all_comment: Option<String>,
+    ) -> String {
         if config_comment.is_none() {
             return String::from("");
         }
