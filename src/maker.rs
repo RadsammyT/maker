@@ -112,75 +112,77 @@ impl LaSingleton {
             let mut line = String::from(line_str);
             line = line.trim().to_string();
             if let Some(c) = line.find('#') {
-                if !line.starts_with("comment") {
+                if !line.starts_with("comment") && !line.starts_with("all-comment") {
                     line = line.split_at(c).0.to_string();
                 }
             }
-            {
-                if line.ends_with('\\') {
-                    line = line.trim_end_matches('\\').to_string();
-                    loop {
-                        let next_line = line_iter.next();
-                        let mut break_loop = false;
-                        if let Some(mut str) = next_line {
-                            if !str.ends_with('\\') {
-                                break_loop = true;
-                            }
-                            str = str.trim();
-                            str = str.trim_end_matches('\\');
-                            line.push_str(str);
+            if line.ends_with('\\') {
+                line = line.trim_end_matches('\\').to_string();
+                loop {
+                    let next_line = line_iter.next();
+                    let mut break_loop = false;
+                    if let Some(mut str) = next_line {
+                        if !str.ends_with('\\') {
+                            break_loop = true;
                         }
-                        if break_loop {
-                            break;
-                        }
+                        str = str.trim();
+                        str = str.trim_end_matches('\\');
+                        line.push_str(str);
+                    }
+                    if break_loop {
+                        break;
                     }
                 }
-                if line.starts_with("extension") {
-                    line = line.trim_start_matches("extension").to_string();
-                    temp_config.extensions = split_string(line.to_string());
-                    ext_is_pushed = false;
-                } else if line.starts_with("config") {
-                    config_string = line
-                        .trim_start_matches("config")
-                        .trim_start()
+            }
+            if line.starts_with("extension") {
+                line = line.trim_start_matches("extension").to_string();
+                temp_config.extensions = split_string(line.to_string());
+                ext_is_pushed = false;
+            } else if line.starts_with("config") {
+                config_string = line
+                    .trim_start_matches("config")
+                    .trim_start()
+                    .trim_end()
+                    .to_string();
+                conf_is_pushed = false;
+            } else if line.starts_with("format") {
+                temp_config
+                    .configs
+                    .entry(config_string.clone())
+                    .or_insert(SubConfig {
+                        format: "".to_owned(),
+                        comment_cmd_prefix: None,
+                    })
+                    .format = line.trim_start_matches("format ").trim_end().to_string();
+            } else if line.starts_with("comment") {
+                temp_config
+                    .configs
+                    .entry(config_string.clone())
+                    .or_insert(SubConfig {
+                        format: String::new(),
+                        comment_cmd_prefix: Some(String::new()),
+                    })
+                    .comment_cmd_prefix =
+                    Some(line.trim_start_matches("comment ").trim_end().to_string());
+            } else if line.starts_with("all-comment") && config_string == NO_CONFIG {
+                temp_config.comment = Some(
+                    line.trim_start_matches("all-comment ")
                         .trim_end()
-                        .to_string();
-                    conf_is_pushed = false;
-                } else if line.starts_with("format") {
-                    temp_config
-                        .configs
-                        .entry(config_string.clone())
-                        .or_insert(SubConfig {
-                            format: "".to_owned(),
-                            comment_cmd_prefix: None,
-                        })
-                        .format = line.trim_start_matches("format ").trim_end().to_string();
-                } else if line.starts_with("comment") {
-                    temp_config
-                        .configs
-                        .entry(config_string.clone())
-                        .or_insert(SubConfig {
-                            format: String::new(),
-                            comment_cmd_prefix: Some(String::new()),
-                        })
-                        .comment_cmd_prefix =
-                        Some(line.trim_start_matches("comment ").trim_end().to_string());
-                } else if line.starts_with("all-comment") && config_string == NO_CONFIG {
-                    temp_config.comment = Some(
-                        line.trim_start_matches("all-comment ")
-                            .trim_end()
-                            .to_string(),
-                    );
-                } else if line.starts_with("end-extension") {
-                    self.config_list.push(temp_config.clone());
-                    temp_config.clear();
-                    ext_is_pushed = true;
-                } else if line.starts_with("end-config") {
-                    NO_CONFIG.clone_into(&mut config_string);
-                    conf_is_pushed = true;
-                } else if !line.trim().to_string().is_empty() {
-                    println!("---UNCOVERED LINE---\n{}\n{:?}", line, line.as_bytes());
-                }
+                        .to_string(),
+                );
+            } else if line.starts_with("end-extension") {
+                self.config_list.push(temp_config.clone());
+                temp_config.clear();
+                ext_is_pushed = true;
+            } else if line.starts_with("end-config") {
+                NO_CONFIG.clone_into(&mut config_string);
+                conf_is_pushed = true;
+            } else if !line.trim().to_string().is_empty() {
+                println!(
+                    "---UNCOVERED LINE---\n{}\n{:?}\n--------------------",
+                    line,
+                    line.as_bytes()
+                );
             }
         }
         if !ext_is_pushed {
