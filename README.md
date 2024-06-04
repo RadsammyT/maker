@@ -25,6 +25,9 @@ Comments in your source files CAN have a use, specifically to add flags for that
 Add `comment (ex: //MAKER:, #MAKER:, etc.)` to declare the prefix (ideally a comment). Any 
 instances of that prefix of the source file will then add to the flags.
 
+`all-comment` can also be used (in default config) to add flags for the source file, and this 
+will apply to every configuration regardless.
+
 To setup a configuration for a specific language (in this case C):
 
 ```
@@ -40,6 +43,7 @@ extension .c # .cpp .cxx .cc #and yes comments exist
 	
 	format cc %file% -o %output%
     comment //CC:
+    all-comment //ALL:
 end-extension
 ```
 
