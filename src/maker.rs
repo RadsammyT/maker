@@ -309,7 +309,9 @@ impl LaSingleton {
                 config.comment,
             );
 
+            format.push(' ');
             format.push_str(self.additional_flags.as_str());
+            format.push(' ');
             format.push_str(commented_flags.as_str());
 
             let mut format_split = format.split_whitespace();
