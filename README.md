@@ -32,16 +32,17 @@ To setup a configuration for a specific language (in this case C):
 
 ```
 extension .c # .cpp .cxx .cc #and yes comments exist
-	config gcc
+    config gcc
         format gcc %file% -o %output%
         comment //GCC:
-	end-config
-	config tcc
+    end-config
+
+    config tcc
         format tcc %file% -o %output%
         comment //TCC:
     end-config
 	
-	format cc %file% -o %output%
+    format cc %file% -o %output%
     comment //CC:
     all-comment //ALL:
 end-extension
