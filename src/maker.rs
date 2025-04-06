@@ -175,7 +175,7 @@ impl LaSingleton {
                 temp_config.clear();
                 ext_is_pushed = true;
             } else if line.starts_with("end-config") {
-                NO_CONFIG.clone_into(&mut config_string);
+                config_string = NO_CONFIG.to_string();
                 conf_is_pushed = true;
             } else if !line.trim().to_string().is_empty() {
                 println!(
@@ -255,28 +255,25 @@ impl LaSingleton {
     }
     fn find_config(&mut self, extension: &str) -> Option<ExtensionConfig> {
         let mut ret: Option<ExtensionConfig> = None;
-        self.config_list.iter().for_each(|i| {
-            i.extensions.iter().for_each(|j| {
+        for i in self.config_list.iter() {
+            for j in i.extensions.iter() {
                 if extension.ends_with(j) {
                     ret = Some(i.clone());
                 }
-            });
-        });
+            }
+        }
         ret
     }
 
     pub fn execute(&mut self) -> Result<(), MakerError> {
         for i in self.input_files.clone() {
             let split_index = i.find('.');
-            match split_index {
-                Some(_) => {}
-                None => {
-                    println!(
-                        "ERROR: tried to split \"{}\" at '.' but failed! Is it a directory?",
-                        i
-                    );
-                    continue;
-                }
+            if split_index.is_none() {
+                println!(
+                    "ERROR: tried to split \"{}\" at '.' but failed! Is it a directory?",
+                    i
+                );
+                continue;
             }
             let config = self.find_config(i.split_at(split_index.unwrap()).1);
             if config.is_none() {
@@ -314,11 +311,10 @@ impl LaSingleton {
             format.push(' ');
             format.push_str(commented_flags.as_str());
 
-            let mut format_split = format.split_whitespace();
-            let mut com = Command::new(format_split.next().unwrap());
-
-            for arg in format_split {
-                com.arg(arg);
+            let mut com = Command::new("bash");
+            com.args(["-c", format.as_str()]);
+            if cfg!(debug_assertions) {
+                dbg!(&com);
             }
 
             let _ = fs::create_dir(self.output_dir.clone()); // dir creation result doesnt matter
